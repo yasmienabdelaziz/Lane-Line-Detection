@@ -115,6 +115,7 @@ def inv_perspective_warp(img,
 def get_hist(img):
     hist = np.sum(img[img.shape[0]//2:,:], axis=0)
     return hist
+
 def vid_pipeline(img):
     global running_avg
     global index
@@ -132,20 +133,61 @@ def vid_pipeline(img):
     cv2.putText(img, 'Vehicle offset: {:.4f} m'.format(curverad[2]), (570, 650), font, fontSize, fontColor, 2)
     return img
 
+def get_curve(img, leftx, rightx):
+    ploty = np.linspace(0, img.shape[0]-1, img.shape[0])
+    y_eval = np.max(ploty)
+    ym_per_pix = 30.5/720  # meters per pixel in y dimension
+    xm_per_pix = 3.7/720  # meters per pixel in x dimension
 
-videopath=input('enter the path of the video: ')
-mode=input('enter the mode:   0 for normal, 1 for debugging')
+    # Fit new polynomials to x,y in world space
+    left_fit_cr = np.polyfit(ploty*ym_per_pix, leftx*xm_per_pix, 2)
+    right_fit_cr = np.polyfit(ploty*ym_per_pix, rightx*xm_per_pix, 2)
+    # Calculate the new radii of curvature
+    left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix +
+                     left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
+    right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix +
+                      right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
+
+    car_pos = img.shape[1]/2
+    l_fit_x_int = left_fit_cr[0]*img.shape[0]**2 + \
+        left_fit_cr[1]*img.shape[0] + left_fit_cr[2]
+    r_fit_x_int = right_fit_cr[0]*img.shape[0]**2 + \
+        right_fit_cr[1]*img.shape[0] + right_fit_cr[2]
+    lane_center_position = (r_fit_x_int + l_fit_x_int) / 2
+    center = (car_pos - lane_center_position) * xm_per_pix / 10
+    # Now our radius of curvature is in meters
+    return (left_curverad, right_curverad, center)
+
+
+def draw_lanes(img, left_fit, right_fit):
+    ploty = np.linspace(0, img.shape[0]-1, img.shape[0])
+    color_img = np.zeros_like(img)
+
+    left = np.array([np.transpose(np.vstack([left_fit, ploty]))])
+    right = np.array([np.flipud(np.transpose(np.vstack([right_fit, ploty])))])
+    points = np.hstack((left, right))
+
+    cv2.fillPoly(color_img, np.int_(points), (0, 200, 255))
+    inv_perspective = inv_perspective_warp(color_img)
+    inv_perspective = cv2.addWeighted(img, 1, inv_perspective, 0.7, 0)
+    return inv_perspective
+
+
+videopath = sys.argv[1]
+#output_location = sys.argv[2]
+mode = int(sys.argv[3])
+
 cap=cv2.VideoCapture(videopath)
 while(cap.isOpened()):
     _,pure_frame=cap.read()
     frame1=pure_frame
     frame2=pure_frame
     out_frame=vid_pipeline(pure_frame)
-    if(mode=='0'):
+    if(mode==0):
         cv2.imshow("output",out_frame)
         if cv2.waitKey(1)&0xFF==ord('q'):
             break
-    else if(mode=='1'):
+    elif(mode==1):
         dst = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
     #converting from RGB to thresholded HLS
         HLS = pipeline(dst)
