@@ -115,3 +115,62 @@ def inv_perspective_warp(img,
 def get_hist(img):
     hist = np.sum(img[img.shape[0]//2:,:], axis=0)
     return hist
+def vid_pipeline(img):
+    global running_avg
+    global index
+    img_ = pipeline(img)
+    img_ = perspective_warp(img_)
+    out_img, curves, lanes, ploty = sliding_window(img_, draw_windows=True)
+    curverad =get_curve(img, curves[0], curves[1])
+    lane_curve = np.mean([curverad[0], curverad[1]])
+    img = draw_lanes(img, curves[0], curves[1])
+    
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    fontColor = (0, 0, 0)
+    fontSize=0.5
+    cv2.putText(img, 'Lane Curvature: {:.0f} m'.format(lane_curve), (570, 620), font, fontSize, fontColor, 2)
+    cv2.putText(img, 'Vehicle offset: {:.4f} m'.format(curverad[2]), (570, 650), font, fontSize, fontColor, 2)
+    return img
+
+
+videopath=input('enter the path of the video: ')
+mode=input('enter the mode:   0 for normal, 1 for debugging')
+cap=cv2.VideoCapture(videopath)
+while(cap.isOpened()):
+    _,pure_frame=cap.read()
+    frame1=pure_frame
+    frame2=pure_frame
+    out_frame=vid_pipeline(pure_frame)
+    if(mode=='0'):
+        cv2.imshow("output",out_frame)
+        if cv2.waitKey(1)&0xFF==ord('q'):
+            break
+    else if(mode=='1'):
+        dst = cv2.cvtColor(frame1, cv2.COLOR_BGR2RGB)
+    #converting from RGB to thresholded HLS
+        HLS = pipeline(dst)
+        BirdEyeHLS = perspective_warp(HLS)
+        BirdEye=perspective_warp(pure_frame)
+        windows, curves, lanes, ploty = sliding_window(BirdEyeHLS, draw_windows=True)
+
+    
+    
+        BirdEyeHLS = cv2.cvtColor(BirdEyeHLS, cv2.COLOR_GRAY2RGB)
+        HLS = cv2.cvtColor(HLS, cv2.COLOR_GRAY2RGB)
+        BirdEyeHLS=cv2.resize(BirdEyeHLS,(640,360),interpolation=cv2.INTER_AREA)
+        HLS=cv2.resize(HLS,(640,360),interpolation=cv2.INTER_AREA)
+        BirdEye=cv2.resize(BirdEye,(640,360),interpolation=cv2.INTER_AREA)
+        windows=cv2.resize(windows,(640,360),interpolation=cv2.INTER_AREA)
+        out_frame=cv2.resize(out_frame,(640,360),interpolation=cv2.INTER_AREA)
+        pure_frame=cv2.resize(pure_frame,(640,360),interpolation=cv2.INTER_AREA)
+        BirdEyeHLS = cv2.normalize(BirdEyeHLS, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        HLS= cv2.normalize(HLS, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        Hori = np.hstack((pure_frame, HLS,BirdEye))
+        Hori2 = np.hstack((BirdEyeHLS,windows, out_frame))
+        ver=np.vstack((Hori,Hori2))
+        cv2.imshow("output",ver)
+        if cv2.waitKey(1)&0xFF==ord('q'):
+            break
+cap.release()
+cv2.destroyAllWindows()
+
