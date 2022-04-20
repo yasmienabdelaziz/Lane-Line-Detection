@@ -5,8 +5,7 @@ import os
 import glob
 import matplotlib.pyplot as plt
 import pickle
-
-%matplotlib inline
+import sys
 
 def undistort_img():
     # Prepare object points 0,0,0 ... 8,5,0
@@ -223,8 +222,8 @@ def sliding_window(img, nwindows=9, margin=150, minpix=1, draw_windows=True):
 
     # Generate x and y values for plotting
     ploty = np.linspace(0, img.shape[0]-1, img.shape[0])
-    left_fitx = left_fit_[0]ploty*2 + left_fit_[1]*ploty + left_fit_[2]
-    right_fitx = right_fit_[0]ploty*2 + right_fit_[1]*ploty + right_fit_[2]
+    left_fitx = left_fit_[0]*ploty**2 + left_fit_[1]*ploty + left_fit_[2]
+    right_fitx = right_fit_[0]*ploty**2 + right_fit_[1]*ploty + right_fit_[2]
 
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 100]
     out_img[nonzeroy[right_lane_inds],
